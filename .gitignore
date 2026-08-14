@@ -1,0 +1,54 @@
+# ---- Build outputs ----
+Debug/
+Release/
+build/
+cmake-build-*/
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.lst
+*.su
+*.d
+
+# ---- STM32CubeIDE / Eclipse project junk ----
+.metadata/
+.settings/
+.mxproject
+*.launch
+RTE/
+
+# ---- STM32CubeMX ----
+# (keep the .ioc file! just ignore generated backups)
+*.ioc.bak
+
+# ---- CLion / CMake ----
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# ---- VS Code ----
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs / temp ----
+*.log
+*.tmp
+*.bak
+
+# ---- Toolchain-specific ----
+*.d
+*.i
+*.s
+startup_*.s.bak
