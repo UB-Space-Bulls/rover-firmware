@@ -1,150 +1,258 @@
-# Jetson ↔ STM32 CAN FD Protocol Spec (v0.2)
+# Jetson ↔ STM32 CAN FD Protocol Spec (v0.3)
 
-**Status:** Draft, developed decision-by-decision. Each choice below has a stated
-reason — this is meant to be editable, not treated as fixed once written. Arm not yet accounted for
+**Status:** Developed decision-by-decision, reasoning kept alongside each choice so
+it's editable rather than treated as fixed. Two independent physical CAN buses:
+drivetrain and arm. Shared conventions apply to both; message definitions are
+bus-specific.
 
-## 1. Overview
+---
 
-- **Transport:** CAN FD, two nodes (Jetson via USB-CAN/SPI-CAN adapter, STM32 onboard CAN FD peripheral)
-- **Arbitration bitrate:** TBD — pick after transceiver/wiring is finalized (500 kbit/s–1 Mbit/s is safe for a short two-node link)
-- **Data-phase bitrate:** TBD — same, typical range 2–8 Mbit/s
-- **ID format:** 11-bit standard IDs
+## Part 0 — Shared Conventions (apply to both buses)
+
+- **Transport:** CAN FD
+- **ID format:** 11-bit standard IDs (separate ID space per bus — no collision risk since they're physically independent buses)
 - **Byte order:** Little-endian (native to both STM32 and Jetson — zero conversion needed)
-- **Architectural boundary:** Jetson owns path/velocity decisions; STM32 owns motor control and odometry computation. Neither side needs to know the internals of the other.
+- **Framing:** Free — CAN FD is inherently message-based, no delimiter/length-prefix design needed
+- **Integrity:** Free — CAN FD's hardware CRC rejects corrupted frames before application code ever sees them; no application-level checksum needed
+- **ID-priority philosophy:** lower ID = higher bus arbitration priority. Order message IDs by what must win contention if two ever transmit simultaneously, not just by convenience
+- **Malformed frame handling:** application-level sanity checks (length/DLC match, in-range values) catch frames that are electrically intact but nonsensical. Default behavior: drop silently, no NACK/retransmit — rely on the next valid message arriving within one normal period
+- **Extensibility default:** leave numeric gaps between assigned IDs, and reserved padding bytes in messages with room, so future additions don't require renumbering or reformatting existing messages
+- **Rates are tuning parameters, not structural decisions** — placeholder values below are meant to be tuned once real (or simulated) hardware and upstream software (planning/MoveIt2) exist, not treated as final
 
-## 2. Message ID Map
+---
 
-IDs double as CAN arbitration priority (lower ID = wins bus contention). Ordered by
-how urgent it is that a message wins if two ever collide on the bus.
+## Part 1 — Drivetrain Bus
+
+### 1.1 Overview
+- **Architectural boundary:** Jetson owns path/velocity decisions; STM32 owns motor control and odometry computation.
+- Arbitration bitrate: TBD (500 kbit/s–1 Mbit/s typical for a short two-node link)
+- Data-phase bitrate: TBD (2–8 Mbit/s typical)
+
+### 1.2 Message ID Map
 
 | ID (hex) | Name | Direction | Priority | Rate |
 |---|---|---|---|---|
 | 0x000 | Estop / Fault | Jetson → STM32 | Highest — safety must never lose arbitration | Event-driven |
-| 0x010 | Command (cmd_vel + mode) | Jetson → STM32 | High | ~20 Hz (tune once planning pipeline exists) |
-| 0x020 | Odometry / Telemetry | STM32 → Jetson | Medium | Matches command rate, ~20 Hz |
-| 0x030 | Config / Parameter Set | Jetson → STM32 | Lowest, on-demand only | On-demand |
+| 0x010 | Command (cmd_vel + mode) | Jetson → STM32 | High | ~20 Hz (placeholder) |
+| 0x020 | Odometry / Telemetry | STM32 → Jetson | Medium | Matches command rate |
+| 0x030 | Config / Parameter Set | Jetson → STM32 | Lowest, on-demand | On-demand |
 | 0x040 | *(reserved for future use)* | — | — | — |
 
-**Why no heartbeat:** odometry (0x020) already flows on a regular schedule. The Jetson
-watching "have I received odometry recently" gives the same liveness signal a dedicated
-heartbeat would, without adding a redundant message type. Config was moved down to fill
-the gap left by dropping it, keeping message IDs contiguous with 0x040 open for the
-next addition.
+No dedicated heartbeat — regular Odometry (0x020) arrival serves as the liveness signal the Jetson watches for.
 
-## 3. Message Definitions
+### 1.3 Message Definitions
 
-### 0x000 — Estop / Fault (Jetson → STM32)
+**0x000 — Estop / Fault (Jetson → STM32)**
 | Field | Type | Bytes | Description |
 |---|---|---|---|
 | estop_reason | uint8 | 1 | 0=manual, 1=comm_loss, 2=overcurrent, 3=other |
-| sequence_number | uint8 | 1 | Increments per message |
+| sequence_number | uint8 | 1 | |
 
-**Total: 2 bytes**
+Total: 2 bytes. Behavior: immediate hard stop (motor output cut entirely) — chosen over
+a decel ramp because the platform's mass/speed profile makes uncontrolled coast a
+non-issue; revisit if the platform scales up.
 
-**Behavior on receipt:** STM32 immediately performs a hard stop (motor output cut
-entirely) — see §5 for why hard stop was chosen over a decel ramp.
-
-### 0x010 — Command (Jetson → STM32)
+**0x010 — Command (Jetson → STM32)**
 | Field | Type | Bytes | Description |
 |---|---|---|---|
 | linear_velocity | float32 | 4 | m/s |
 | angular_velocity | float32 | 4 | rad/s |
 | mode | uint8 | 1 | 0=idle, 1=run, 2=estop |
-| sequence_number | uint8 | 1 | Increments per message |
-| reserved | uint16 | 2 | Padding — room to add a field later without changing message length |
+| sequence_number | uint8 | 1 | |
+| reserved | uint16 | 2 | |
 
-**Total: 12 bytes**
+Total: 12 bytes. cmd_vel-style rather than per-wheel — STM32 owns wheel geometry
+conversion so the Jetson stays decoupled from drivetrain mechanics.
 
-Follows a `cmd_vel`-style convention (linear + angular velocity) rather than per-wheel
-targets — the STM32, which knows the actual drivetrain geometry (wheelbase, wheel
-radius), converts this to per-wheel commands. Keeps the Jetson decoupled from
-drivetrain mechanics.
-
-### 0x020 — Odometry / Telemetry (STM32 → Jetson)
+**0x020 — Odometry / Telemetry (STM32 → Jetson)**
 | Field | Type | Bytes | Description |
 |---|---|---|---|
 | pose_x | float32 | 4 | m |
 | pose_y | float32 | 4 | m |
-| pose_heading | float32 | 4 | radians (not degrees — matches ROS/EKF conventions) |
-| linear_velocity | float32 | 4 | m/s, measured (not commanded) |
+| pose_heading | float32 | 4 | radians |
+| linear_velocity | float32 | 4 | m/s, measured |
 | angular_velocity | float32 | 4 | rad/s, measured |
-| fault_flags | uint8 | 1 | Bitfield — see §4 |
-| loop_time_us | uint16 | 2 | STM32 control loop execution time — diagnostic |
-| sequence_number | uint8 | 1 | Increments per message |
+| fault_flags | uint8 | 1 | bitfield, see 1.4 |
+| loop_time_us | uint16 | 2 | diagnostic |
+| sequence_number | uint8 | 1 | |
 
-**Total: 24 bytes**
+Total: 24 bytes. Reports pose + velocity together (nav_msgs/Odometry convention) so it
+can feed a future EKF (wheel odometry + ZED VIO/IMU) without the Jetson re-deriving
+velocity by differentiating noisy position.
 
-Reports pose + velocity together (matching the standard `nav_msgs/Odometry`-style
-convention) rather than velocity alone, specifically so this can feed directly into
-a future sensor fusion node (EKF combining wheel odometry with ZED visual
-odometry/IMU) without the Jetson having to re-derive velocity by differentiating
-noisy position data.
+Current sensing: not yet included — TBD whether ESC exposes current feedback.
 
-**Current sensing:** not yet included — TBD whether the ESC exposes current feedback
-to the STM32. Add as a field once confirmed rather than reserving space for data
-that may not be available.
-
-### 0x030 — Config / Parameter Set (Jetson → STM32)
+**0x030 — Config / Parameter Set (Jetson → STM32)**
 | Field | Type | Bytes | Description |
 |---|---|---|---|
-| param_id | uint8 | 1 | Which parameter (e.g., 0=Kp, 1=Ki, 2=Kd) |
-| param_value | float32 | 4 | New value |
+| param_id | uint8 | 1 | e.g. 0=Kp, 1=Ki, 2=Kd |
+| param_value | float32 | 4 | |
 
-**Total: 5 bytes**
+Total: 5 bytes. Runtime tuning only, not part of the real-time control path — exists so
+PID gains can be adjusted live during tuning without reflashing firmware.
 
-Runtime tuning/debugging only — not part of the main control loop path.
-
-## 4. Fault Flags Bitfield (used in 0x020)
+### 1.4 Fault Flags Bitfield (0x020)
 
 | Bit | Meaning |
 |---|---|
 | 0 | Overcurrent |
-| 1 | Comm timeout (STM32 hasn't received a valid 0x010 recently) |
-| 2 | Encoder fault (no counts detected while commanded to move) |
-| 3 | CAN bus-off, recovered (informational) |
+| 1 | Comm timeout |
+| 2 | Encoder fault |
+| 3 | CAN bus-off, recovered |
 | 4–7 | Reserved |
 
-Packed as a bitfield rather than a single error-code integer specifically so multiple
-simultaneous faults remain visible at once (e.g., overcurrent AND encoder fault both
-active) instead of one silently overwriting the other.
+Bitfield (not a single error code) so simultaneous faults stay visible instead of one
+overwriting another.
 
-## 5. Timeout & Fault Handling
+### 1.5 Timeout & Fault Handling
+- **Command timeout:** ~200 ms (≈4× the ~50 ms/20 Hz command period, following the
+  general 3–5× rule — tight enough to catch real loss, loose enough to tolerate normal jitter)
+- **On timeout:** hard stop (see 1.3)
+- **Bus-off recovery:** STM32 auto-reinitializes CAN peripheral after a backoff delay — TBD
+- **Sequence numbers:** used for drop/reorder diagnostics; a single missed frame alone
+  should not trigger a fault, only sustained loss (command timeout) should
 
-- **Command timeout:** ~200 ms — derived as roughly 4x the expected ~50 ms command
-  period (20 Hz), following the general rule of 3–5x expected period: tight enough to
-  catch real comm loss quickly, loose enough to tolerate normal single-frame jitter
-  without false-triggering.
-- **Behavior on command timeout:** hard stop (motor output cut entirely), not a decel
-  ramp. Chosen because the robot's expected mass/speed profile makes coast-after-cutoff
-  a non-issue; revisit if the platform later scales up to something faster/heavier,
-  since this is pure STM32 firmware behavior and doesn't require a message format
-  change to update.
-- **Liveness / heartbeat:** none dedicated — Jetson treats regular 0x020 odometry
-  arrival as the liveness signal (see §2).
-- **Bus-off recovery:** STM32 firmware should auto-reinitialize the CAN peripheral
-  after a backoff delay on bus-off — exact delay TBD during firmware implementation.
-- **Malformed/unexpected frames:** dropped silently, no NACK/retransmit request — the
-  next valid command arrives within one command period regardless.
-- **Sequence numbers:** used for diagnostics/drop detection; a single missed frame
-  should not by itself trigger a fault — only sustained loss (command timeout, above)
-  should.
-- **CRC/corruption:** handled by CAN FD's hardware CRC — no application-level checksum
-  needed.
-
-## 6. Extensibility
-
-- ID gaps (0x000 / 0x010 / 0x020 / 0x030 / 0x040 free) leave room to insert new
-  message types later without renumbering.
-- Reserved padding bytes included in 0x010 (and worth adding to 0x020 if space
-  allows) so fields can be added later without changing message length.
-- No version byte — appropriate for a two-node project where both ends (Jetson code,
-  STM32 firmware) are updated together by the same team. Revisit only if this
-  protocol is ever deployed where the two sides can update independently.
-
-## 7. Open TBDs
-
-- [ ] Arbitration + data-phase bitrates, once transceiver/wiring is finalized
-- [ ] Whether ESC exposes current sensing — add a current field to 0x020 if so
-- [ ] cmd_vel actual rate — 20 Hz is a placeholder; tune once the planning/perception
-      pipeline exists and its own update rate is known
+### 1.6 Open TBDs
+- [ ] Arbitration + data-phase bitrates, once transceiver/wiring finalized
+- [ ] Whether ESC exposes current sensing
+- [ ] cmd_vel actual rate — 20 Hz placeholder, tune once planning pipeline exists
 - [ ] Bus-off recovery backoff delay
+
+---
+
+## Part 2 — Arm Bus
+
+### 2.1 Overview
+
+**Mechanical structure (5 DOF, 6 actuators):**
+| Joint | Actuator(s) | Notes |
+|---|---|---|
+| Shoulder | 2× BLDC (w/ encoder) | Torque-combined, single DOF — not differential |
+| Elbow | 1× BLDC (w/ encoder) | Single DOF, forearm rotation |
+| Wrist | 2× stepper | True differential — 2 DOF (pitch, roll) from combined motor outputs |
+| Gripper | 1× servo (DS3218) | Single DOF, open/close |
+
+**Sensors:** limit switch at shoulder base + elbow (hard stops, both normal/expected
+during operation, not fault conditions). IMU at elbow + hand (wrist).
+
+**Control mode:** position control throughout — matches MoveIt2's trajectory output
+(joint-space position/velocity waypoints), avoiding a translation step between planner
+output and actuator command.
+
+**Feedback fusion architecture:** arm STM32 fuses whatever each joint needs internally
+and reports one clean estimated joint angle per DOF, regardless of how it was derived:
+- Shoulder/elbow: BLDC encoders directly, elbow IMU as a cross-check against gearbox backlash/deflection
+- Wrist: steppers are open-loop (no position feedback of their own) — the hand IMU is
+  the primary source of truth for actual wrist orientation, fused with commanded step
+  counts by the STM32
+- This mirrors the drivetrain odometry pattern: raw sensor fusion happens once, close
+  to the hardware; the Jetson only ever sees a clean per-joint state, matching the
+  uniform `joint_states`-style feed MoveIt2's execution monitoring expects — it doesn't
+  need to know which joints have "real" encoders vs. IMU-estimated state
+
+**joint_id numbering** (used in Fault Event, §2.3):
+```
+0 = shoulder
+1 = elbow
+2 = wrist_pitch
+3 = wrist_roll
+4 = gripper
+```
+
+### 2.2 Message ID Map
+
+| ID (hex) | Name | Direction | Priority | Trigger |
+|---|---|---|---|---|
+| 0x000 | Estop | Jetson → STM32 | Highest | Event-driven |
+| 0x005 | Fault Event | STM32 → Jetson | Very high — preempts routine traffic | Event-driven, sent immediately on detection |
+| 0x010 | Command (joint targets + mode) | Jetson → STM32 | High | ~50 Hz (placeholder) |
+| 0x020 | Feedback (joint state) | STM32 → Jetson | Medium | Matches command rate |
+| 0x030 | Config | Jetson → STM32 | Lowest | On-demand |
+
+### 2.3 Message Definitions
+
+**0x005 — Fault Event (STM32 → Jetson)**
+| Field | Type | Bytes | Description |
+|---|---|---|---|
+| joint_id | uint8 | 1 | See §2.1 numbering |
+| fault_type | uint8 | 1 | 0=limit switch hit (room left for future types) |
+| sequence_number | uint8 | 1 | |
+
+Total: 3 bytes. Kept minimal and fast — detailed state still rides the next regular
+Feedback message. STM32 reacts locally the instant its GPIO sees the limit switch
+trip; this message is purely informational, not a request for permission.
+
+**0x010 — Command (Jetson → STM32)**
+| Field | Type | Bytes | Description |
+|---|---|---|---|
+| shoulder_angle | float32 | 4 | rad |
+| elbow_angle | float32 | 4 | rad |
+| wrist_pitch | float32 | 4 | rad |
+| wrist_roll | float32 | 4 | rad |
+| gripper_position | float32 | 4 | |
+| mode | uint8 | 1 | 0=idle, 1=run, 2=estop |
+| sequence_number | uint8 | 1 | |
+| reserved | uint16 | 2 | |
+
+Total: 24 bytes. No Jetson-visible homing mode — homing is handled internally by the
+STM32 using the limit switches as zero-reference; a "not yet homed" condition can be
+surfaced via fault_flags in Feedback rather than a dedicated mode value.
+
+**0x020 — Feedback (STM32 → Jetson)**
+| Field | Type | Bytes | Description |
+|---|---|---|---|
+| shoulder_angle | float32 | 4 | measured/fused |
+| shoulder_velocity | float32 | 4 | |
+| elbow_angle | float32 | 4 | |
+| elbow_velocity | float32 | 4 | |
+| wrist_pitch | float32 | 4 | IMU-fused |
+| wrist_pitch_velocity | float32 | 4 | |
+| wrist_roll | float32 | 4 | IMU-fused |
+| wrist_roll_velocity | float32 | 4 | |
+| gripper_position | float32 | 4 | echo of last commanded value — DS3218 feedback availability TBD, see §2.5 |
+| fault_flags | uint8 | 1 | bitfield, see 2.4 |
+| sequence_number | uint8 | 1 | |
+
+Total: ~39 bytes. Position + velocity per joint (except gripper) to match what
+MoveIt2's trajectory execution monitoring expects.
+
+**0x030 — Config (Jetson → STM32)**
+| Field | Type | Bytes | Description |
+|---|---|---|---|
+| param_id | uint8 | 1 | |
+| param_value | float32 | 4 | |
+
+Total: 5 bytes. Same purpose as drivetrain Config — live tuning, not part of the
+real-time control path.
+
+### 2.4 Fault Flags Bitfield (0x020)
+
+| Bit | Meaning |
+|---|---|
+| 0 | Shoulder limit switch active |
+| 1 | Elbow limit switch active |
+| 2 | Not yet homed |
+| 3–7 | Reserved |
+
+### 2.5 Fault & Limit-Switch Handling
+
+- **Limit switches are normal/expected**, not exceptional — both shoulder and elbow are
+  routinely reached during normal operation, not just homing.
+- **On trip:** STM32 halts output to *that joint only* — other joints continue
+  executing their current trajectory uninterrupted. (Considered a whole-arm stop, but
+  rejected: since these triggers are routine, aborting all coordinated motion on every
+  normal limit event would be a worse outcome for no real safety benefit.)
+- **Auto-resume:** no explicit "clear fault" step required — the moment a subsequent
+  Command's target for that joint is back within legal range, the STM32 resumes normal
+  control automatically.
+- **Reported via:** Fault Event (0x005), immediately on detection, plus the
+  corresponding fault_flags bit in the next Feedback message.
+
+### 2.6 Open TBDs
+- [ ] Whether the DS3218 gripper servo provides any real position feedback, or remains
+      command-echo only
+- [ ] Actual joint angle ranges per DOF (depends on final mechanical design)
+- [ ] Command rate — 50 Hz placeholder, tune once MoveIt2 trajectory execution is running
+- [ ] Arbitration + data-phase bitrates for this bus
+- [ ] Whether other fault types (e.g. encoder fault) should be added to fault_type
+      beyond limit-switch events
