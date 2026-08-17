@@ -171,6 +171,16 @@ and reports one clean estimated joint angle per DOF, regardless of how it was de
 
 ### 2.3 Message Definitions
 
+**0x000 — Estop (Jetson → STM32)**
+| Field | Type | Bytes | Description |
+|---|---|---|---|
+| estop_reason | uint8 | 1 | 0=manual, 1=comm_loss, 2=overcurrent, 3=other |
+| sequence_number | uint8 | 1 | |
+
+Total: 2 bytes. Same layout as drivetrain Estop (§1.3) — defined identically rather
+than inventing a separate format, since the semantics (immediate hard stop, reason
+code) don't differ per-bus.
+
 **0x005 — Fault Event (STM32 → Jetson)**
 | Field | Type | Bytes | Description |
 |---|---|---|---|
@@ -213,7 +223,7 @@ surfaced via fault_flags in Feedback rather than a dedicated mode value.
 | fault_flags | uint8 | 1 | bitfield, see 2.4 |
 | sequence_number | uint8 | 1 | |
 
-Total: ~39 bytes. Position + velocity per joint (except gripper) to match what
+Total: 38 bytes. Position + velocity per joint (except gripper) to match what
 MoveIt2's trajectory execution monitoring expects.
 
 **0x030 — Config (Jetson → STM32)**
