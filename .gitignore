@@ -52,3 +52,7 @@ Thumbs.db
 *.i
 *.s
 startup_*.s.bak
+
+# ---- Host-compiled test binaries ----
+tests/test_protocol
+tests/test_protocol.exe
