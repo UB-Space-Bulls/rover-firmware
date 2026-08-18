@@ -2,8 +2,8 @@
 
 #include <string.h>
 
-/* memcpy into a uint32_t instead of pointer-casting float* -- avoids
- * undefined behavior from breaking C's strict-aliasing rule. */
+/* Packs a float into 4 little-endian bytes (memcpy avoids undefined
+ * behavior from pointer-casting float* to uint32_t*). */
 static void pack_f32_le(uint8_t *dst, float v)
 {
     uint32_t bits;
@@ -15,6 +15,7 @@ static void pack_f32_le(uint8_t *dst, float v)
     dst[3] = (uint8_t)((bits >> 24) & 0xFFu);
 }
 
+/* Encodes an Estop message (0x000) into out. */
 arm_status_t arm_encode_estop(const arm_estop_t *msg, uint8_t out[ARM_ESTOP_LEN])
 {
     if (msg->estop_reason > ARM_ESTOP_OTHER) {
@@ -26,6 +27,7 @@ arm_status_t arm_encode_estop(const arm_estop_t *msg, uint8_t out[ARM_ESTOP_LEN]
     return ARM_OK;
 }
 
+/* Encodes a Fault Event message (0x005) into out. */
 arm_status_t arm_encode_fault_event(const arm_fault_event_t *msg, uint8_t out[ARM_FAULT_EVENT_LEN])
 {
     if (msg->joint_id > ARM_JOINT_GRIPPER) {
@@ -38,6 +40,7 @@ arm_status_t arm_encode_fault_event(const arm_fault_event_t *msg, uint8_t out[AR
     return ARM_OK;
 }
 
+/* Encodes a Command message (0x010) into out. */
 arm_status_t arm_encode_command(const arm_command_t *msg, uint8_t out[ARM_COMMAND_LEN])
 {
     if (msg->mode > ARM_MODE_ESTOP) {
@@ -56,6 +59,7 @@ arm_status_t arm_encode_command(const arm_command_t *msg, uint8_t out[ARM_COMMAN
     return ARM_OK;
 }
 
+/* Encodes a Feedback message (0x020) into out. */
 arm_status_t arm_encode_feedback(const arm_feedback_t *msg, uint8_t out[ARM_FEEDBACK_LEN])
 {
     pack_f32_le(&out[0], msg->shoulder_angle);
@@ -72,6 +76,7 @@ arm_status_t arm_encode_feedback(const arm_feedback_t *msg, uint8_t out[ARM_FEED
     return ARM_OK;
 }
 
+/* Encodes a Config message (0x030) into out. */
 arm_status_t arm_encode_config(const arm_config_t *msg, uint8_t out[ARM_CONFIG_LEN])
 {
     out[0] = msg->param_id;

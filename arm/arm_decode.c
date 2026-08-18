@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-/* Little-endian byte unpack helper, reverse of arm_encode.c. */
+/* Unpacks 4 little-endian bytes into a float. */
 static float unpack_f32_le(const uint8_t *src)
 {
     uint32_t bits = (uint32_t)src[0]
@@ -15,6 +15,7 @@ static float unpack_f32_le(const uint8_t *src)
     return v;
 }
 
+/* Decodes an Estop message (0x000) from buf into out. */
 arm_status_t arm_decode_estop(const uint8_t *buf, uint8_t len, arm_estop_t *out)
 {
     if (len != ARM_ESTOP_LEN) {
@@ -29,6 +30,7 @@ arm_status_t arm_decode_estop(const uint8_t *buf, uint8_t len, arm_estop_t *out)
     return ARM_OK;
 }
 
+/* Decodes a Fault Event message (0x005) from buf into out. */
 arm_status_t arm_decode_fault_event(const uint8_t *buf, uint8_t len, arm_fault_event_t *out)
 {
     if (len != ARM_FAULT_EVENT_LEN) {
@@ -45,6 +47,7 @@ arm_status_t arm_decode_fault_event(const uint8_t *buf, uint8_t len, arm_fault_e
     return ARM_OK;
 }
 
+/* Decodes a Command message (0x010) from buf into out. */
 arm_status_t arm_decode_command(const uint8_t *buf, uint8_t len, arm_command_t *out)
 {
     if (len != ARM_COMMAND_LEN) {
@@ -65,6 +68,7 @@ arm_status_t arm_decode_command(const uint8_t *buf, uint8_t len, arm_command_t *
     return ARM_OK;
 }
 
+/* Decodes a Feedback message (0x020) from buf into out. */
 arm_status_t arm_decode_feedback(const uint8_t *buf, uint8_t len, arm_feedback_t *out)
 {
     if (len != ARM_FEEDBACK_LEN) {
@@ -85,6 +89,7 @@ arm_status_t arm_decode_feedback(const uint8_t *buf, uint8_t len, arm_feedback_t
     return ARM_OK;
 }
 
+/* Decodes a Config message (0x030) from buf into out. */
 arm_status_t arm_decode_config(const uint8_t *buf, uint8_t len, arm_config_t *out)
 {
     if (len != ARM_CONFIG_LEN) {

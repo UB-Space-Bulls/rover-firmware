@@ -2,13 +2,13 @@
 
 #include <string.h>
 
-/* Little-endian byte unpack helpers, reverse of drivetrain_encode.c. */
-
+/* Unpacks 2 little-endian bytes into a uint16. */
 static uint16_t unpack_u16_le(const uint8_t *src)
 {
     return (uint16_t)(src[0] | ((uint16_t)src[1] << 8));
 }
 
+/* Unpacks 4 little-endian bytes into a float. */
 static float unpack_f32_le(const uint8_t *src)
 {
     uint32_t bits = (uint32_t)src[0]
@@ -21,6 +21,7 @@ static float unpack_f32_le(const uint8_t *src)
     return v;
 }
 
+/* Decodes an Estop message (0x000) from buf into out. */
 drivetrain_status_t drivetrain_decode_estop(const uint8_t *buf, uint8_t len, drivetrain_estop_t *out)
 {
     if (len != DRIVETRAIN_ESTOP_LEN) {
@@ -35,6 +36,7 @@ drivetrain_status_t drivetrain_decode_estop(const uint8_t *buf, uint8_t len, dri
     return DRIVETRAIN_OK;
 }
 
+/* Decodes a Command message (0x010) from buf into out. */
 drivetrain_status_t drivetrain_decode_command(const uint8_t *buf, uint8_t len, drivetrain_command_t *out)
 {
     if (len != DRIVETRAIN_COMMAND_LEN) {
@@ -52,6 +54,7 @@ drivetrain_status_t drivetrain_decode_command(const uint8_t *buf, uint8_t len, d
     return DRIVETRAIN_OK;
 }
 
+/* Decodes an Odometry/Telemetry message (0x020) from buf into out. */
 drivetrain_status_t drivetrain_decode_odometry(const uint8_t *buf, uint8_t len, drivetrain_odometry_t *out)
 {
     if (len != DRIVETRAIN_ODOMETRY_LEN) {
@@ -69,6 +72,7 @@ drivetrain_status_t drivetrain_decode_odometry(const uint8_t *buf, uint8_t len, 
     return DRIVETRAIN_OK;
 }
 
+/* Decodes a Config message (0x030) from buf into out. */
 drivetrain_status_t drivetrain_decode_config(const uint8_t *buf, uint8_t len, drivetrain_config_t *out)
 {
     if (len != DRIVETRAIN_CONFIG_LEN) {

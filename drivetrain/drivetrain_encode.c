@@ -2,16 +2,15 @@
 
 #include <string.h>
 
-/* Little-endian byte pack helpers (protocol doc Part 0). */
-
+/* Packs a uint16 into 2 little-endian bytes. */
 static void pack_u16_le(uint8_t *dst, uint16_t v)
 {
     dst[0] = (uint8_t)(v & 0xFFu);
     dst[1] = (uint8_t)((v >> 8) & 0xFFu);
 }
 
-/* memcpy into a uint32_t instead of pointer-casting float* -- avoids
- * undefined behavior from breaking C's strict-aliasing rule. */
+/* Packs a float into 4 little-endian bytes (memcpy avoids undefined
+ * behavior from pointer-casting float* to uint32_t*). */
 static void pack_f32_le(uint8_t *dst, float v)
 {
     uint32_t bits;
@@ -23,6 +22,7 @@ static void pack_f32_le(uint8_t *dst, float v)
     dst[3] = (uint8_t)((bits >> 24) & 0xFFu);
 }
 
+/* Encodes an Estop message (0x000) into out. */
 drivetrain_status_t drivetrain_encode_estop(const drivetrain_estop_t *msg, uint8_t out[DRIVETRAIN_ESTOP_LEN])
 {
     if (msg->estop_reason > DRIVETRAIN_ESTOP_OTHER) {
@@ -34,6 +34,7 @@ drivetrain_status_t drivetrain_encode_estop(const drivetrain_estop_t *msg, uint8
     return DRIVETRAIN_OK;
 }
 
+/* Encodes a Command message (0x010) into out. */
 drivetrain_status_t drivetrain_encode_command(const drivetrain_command_t *msg, uint8_t out[DRIVETRAIN_COMMAND_LEN])
 {
     if (msg->mode > DRIVETRAIN_MODE_ESTOP) {
@@ -49,6 +50,7 @@ drivetrain_status_t drivetrain_encode_command(const drivetrain_command_t *msg, u
     return DRIVETRAIN_OK;
 }
 
+/* Encodes an Odometry/Telemetry message (0x020) into out. */
 drivetrain_status_t drivetrain_encode_odometry(const drivetrain_odometry_t *msg, uint8_t out[DRIVETRAIN_ODOMETRY_LEN])
 {
     pack_f32_le(&out[0], msg->pose_x);
@@ -62,6 +64,7 @@ drivetrain_status_t drivetrain_encode_odometry(const drivetrain_odometry_t *msg,
     return DRIVETRAIN_OK;
 }
 
+/* Encodes a Config message (0x030) into out. */
 drivetrain_status_t drivetrain_encode_config(const drivetrain_config_t *msg, uint8_t out[DRIVETRAIN_CONFIG_LEN])
 {
     out[0] = msg->param_id;
