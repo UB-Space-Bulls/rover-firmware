@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 gcc -std=c99 -Wall -Wextra -Wpedantic \
     -I../drivetrain -I../arm \
-    ../drivetrain/drivetrain_encode.c ../drivetrain/drivetrain_decode.c \
+    ../drivetrain/serialization/drivetrain_encode.c ../drivetrain/serialization/drivetrain_decode.c \
     ../arm/arm_encode.c ../arm/arm_decode.c \
     test_protocol.c \
     -o test_protocol

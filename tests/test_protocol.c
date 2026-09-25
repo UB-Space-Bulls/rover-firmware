@@ -7,8 +7,8 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "../drivetrain/drivetrain_encode.h"
-#include "../drivetrain/drivetrain_decode.h"
+#include "../drivetrain/serialization/drivetrain_encode.h"
+#include "../drivetrain/serialization/drivetrain_decode.h"
 #include "../arm/arm_encode.h"
 #include "../arm/arm_decode.h"
 
