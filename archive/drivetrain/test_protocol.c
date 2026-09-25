@@ -1,14 +1,15 @@
 /*
- * Roundtrip tests for the drivetrain encode/decode module: encode
+ * Archived roundtrip tests for the drivetrain encode/decode module: encode
  * a struct, decode it back, check the values match, and check that
  * malformed input (wrong length / bad enum value) is rejected. Host-only
- * (no STM32/HAL dependency), run with tests/run_tests.sh.
+ * (no STM32/HAL dependency). To run by hand from this folder:
+ *   gcc -std=c99 -Wall -Wextra -Wpedantic drivetrain_encode.c drivetrain_decode.c test_protocol.c -o test_protocol
  */
 #include <assert.h>
 #include <stdio.h>
 
-#include "../drivetrain/serialization/drivetrain_encode.h"
-#include "../drivetrain/serialization/drivetrain_decode.h"
+#include "drivetrain_encode.h"
+#include "drivetrain_decode.h"
 
 static void test_drivetrain_estop(void)
 {

@@ -57,18 +57,12 @@ style:
 
 ## Commands
 
-Build and run all tests (host-only, no STM32 toolchain needed):
-
-```sh
-./tests/run_tests.sh
-```
-
-This is a single `gcc -std=c99 -Wall -Wextra -Wpedantic` invocation compiling
-`tests/test_protocol.c` against the drivetrain sources, then
-running the resulting binary. There is no build system beyond this script —
-to run a subset of tests, comment out the unwanted `test_*()` calls in
-`main()` in `tests/test_protocol.c`, or invoke the `gcc` command from the
-script directly with a modified source list.
+There is no active build or test setup right now: the previous drivetrain
+encode/decode and its tests are archived (see Architecture), and how the new
+implementation is built and tested is a decision for the builder. Each
+archived test file (`archive/drivetrain/test_protocol.c`,
+`archive/arm/test_arm.c`) has a host `gcc` command at its top for building it
+by hand from its own folder.
 
 ## Architecture
 
@@ -76,7 +70,8 @@ This repo implements the wire protocol defined in
 [`docs/jetson-stm protocol.md`](docs/jetson-stm%20protocol.md): a CAN FD
 drivetrain bus connecting a Jetson host to an STM32. The doc is the source of
 truth for message IDs, field layouts, and timing/fault behavior — read it
-before changing any message format.
+before changing any message format. The drivetrain protocol (Part 1) is
+current.
 
 The arm is moving to its own STM32. Its hardware and control architecture
 (joints, actuators, sensors, limit-switch behavior) is current and described
@@ -86,32 +81,33 @@ for reference only: nothing builds or tests them, and their message formats
 do not describe the current system. The arm's new protocol and code layout
 are open decisions for the builder.
 
-The drivetrain has a matching `drivetrain_encode.{c,h}` /
-`drivetrain_decode.{c,h}` pair in `drivetrain/serialization/` that converts
-between a plain C struct and the fixed-length wire buffer for every message
-type on the bus.
-This code has **no CAN HAL dependency** — it's pure struct↔bytes translation,
-intended to compile unmodified on both sides of the link: the STM32 side
-(paired with FDCAN HAL calls at the call site) and the Jetson side (paired
-with SocketCAN at the call site). Keep it that way — hardware-specific
-includes belong at the call site, outside these files.
+The drivetrain encode/decode code (struct ↔ wire bytes for every message on
+the bus) is archived in [`archive/drivetrain/`](archive/drivetrain/) so club
+members can write a new implementation in
+[`drivetrain/serialization/`](drivetrain/serialization/). The archived
+version matches the current protocol and is a working reference, but the new
+implementation's design is the builder's to decide.
 
-Encoding conventions, mirroring the protocol doc:
+The archived implementation followed these conventions. They are good
+defaults for the new one; reuse or change them as the builder decides:
+- No CAN HAL (hardware abstraction layer) dependency — pure struct↔bytes
+  translation, so the same code compiles unmodified on the STM32 side (paired
+  with FDCAN HAL calls at the call site) and the Jetson side (paired with
+  SocketCAN at the call site).
 - Little-endian byte packing via `memcpy` to a `uint32_t`/bit-shift (not
   pointer-casting a `float*`, which is UB) — see `pack_f32_le`/`unpack_f32_le`
-  in `drivetrain_encode.c`/`drivetrain_decode.c`.
-- Every encode/decode function returns a `drivetrain_status_t` (`DRIVETRAIN_OK` /
-  `DRIVETRAIN_ERR_LENGTH` / `DRIVETRAIN_ERR_RANGE`) instead of asserting; callers on either
-  side must handle malformed frames without crashing.
+  in `archive/drivetrain/drivetrain_encode.c`/`drivetrain_decode.c`.
+- Every encode/decode function returns a status (`DRIVETRAIN_OK` /
+  `DRIVETRAIN_ERR_LENGTH` / `DRIVETRAIN_ERR_RANGE`) instead of asserting, so
+  callers on either side handle malformed frames without crashing.
 - `DRIVETRAIN_ERR_LENGTH` on decode when `len` doesn't match the message's
   fixed `*_LEN`; `DRIVETRAIN_ERR_RANGE` on encode/decode when a closed-enum
   field (mode, estop_reason) holds a value outside its defined range.
-  Open-ended fields (`param_id`) are intentionally
-  **not** range-checked — see the comments at each definition for why.
+  Open-ended fields (`param_id`) are intentionally **not** range-checked —
+  see the comments at each definition for why.
 - Reserved bytes are zeroed on encode, ignored (not validated) on decode.
 
-When adding a new message or field: update the protocol doc first, then add
-matching struct fields / `*_LEN` constants / encode+decode logic in lockstep
-across both files, then extend `tests/test_protocol.c` with a roundtrip test
+When adding a new message or field: update the protocol doc first, then
+change the encode and decode code in lockstep, then add a roundtrip test
 (encode→decode→compare) and a malformed-input case if the message has any
 range-checked or length-sensitive field.

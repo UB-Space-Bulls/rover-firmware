@@ -9,4 +9,4 @@ consulted or reused:
 
 - [`arm-bus-protocol-v0.3.md`](arm-bus-protocol-v0.3.md): the full v0.3 arm section of the protocol doc, including the message set removed in v0.4
 - `arm_encode.{c,h}` / `arm_decode.{c,h}`: encode/decode for that spec
-- `test_arm.c`: its roundtrip tests (not run by `tests/run_tests.sh`; build command at the top of the file)
+- `test_arm.c`: its roundtrip tests (build command at the top of the file)

@@ -1,6 +1,6 @@
 /*
  * Archived roundtrip tests for the arm encode/decode module (arm bus
- * protocol v0.3). Not built by tests/run_tests.sh. To run by hand from
+ * protocol v0.3). To run by hand from
  * this folder:
  *   gcc -std=c99 -Wall -Wextra -Wpedantic arm_encode.c arm_decode.c test_arm.c -o test_arm
  */
