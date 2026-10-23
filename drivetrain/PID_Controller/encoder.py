@@ -57,7 +57,7 @@ class EncoderNode(Node):
         else:
             return
 def main(args=None):
-    rclpy.init(args=args)
+   # rclpy.init(args=args)
     node = Node()
     rclpy.spin(node)
     rclpy.shutdown()
